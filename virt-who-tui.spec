@@ -11,6 +11,7 @@ BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
 Requires:       python-setuptools
 Requires:       virt-who
+Requires:       python-urwid
 
 %description
 Virt-who TUI aims to simplify the complexity of settings up virt-who by guiding users step by step.
