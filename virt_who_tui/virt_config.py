@@ -29,8 +29,7 @@ class VirtConfig(object):
     }
 
     SM_MAP = {
-        "Subscription Asset Manager (SAM)": "sam",
-        "Satellite 6": "sam",
+        "Red Hat Subscription Manager (RHSM)": "rhsm",
         "Satellite 5": "sat",
     }
 
@@ -38,7 +37,18 @@ class VirtConfig(object):
 
     VIRT_FIELDS  = ["type", "server", "username", "password", "env", "owner", "encrypted_password", "hypervisor_id"]
     SAT_FIELDS   = ["sat_server", "sat_username", "sat_password", "sat_encrypted_password"]
-    RHSM_FIELDS  = ["rhsm_hostname", "rhsm_username", "rhsm_password", "rhsm_encrypted_password"]
+    RHSM_FIELDS  = [
+        "rhsm_hostname",
+        "rhsm_port",
+        "rhsm_username",
+        "rhsm_password",
+        "rhsm_encrypted_password",
+        "rhsm_proxy_hostname",
+        "rhsm_proxy_port",
+        "rhsm_proxy_user",
+        "rhsm_proxy_password",
+        "rhsm_encrypted_proxy_password",
+    ]
 
     CONFIG_DIR = "/etc/virt-who.d"
     LOG_FILE = "/var/log/virt-who-tui.log"
@@ -102,7 +112,9 @@ class VirtConfig(object):
         if not self.server and self.type not in ['libvirt', 'vdsm', 'fake']:
             raise InvalidOption("Please specify URL of virtualization backend server.")
 
-        if self.smType == 'sam':
+        if ((self.smType == 'rhsm') and (
+                (self.type in ('esx', 'rhevm', 'hyperv', 'xen')) or
+                (self.type == 'libvirt' and self.server))):
             if not self.env:
                 raise InvalidOption("Please specify environment that '%s' belongs to." % self.type)
             elif not self.owner:
@@ -191,18 +203,20 @@ class VirtConfig(object):
         parser = SafeConfigParser()
         parser.add_section(self.config_name)
 
-        #if self.sat_encrypt_pass:
-        #    self.encrypt_password(self.sat_encrypted_password, self.sat_password)
+        if self.sat_encrypt_pass:
+            self.encrypt_password(self.sat_encrypted_password, self.sat_password)
 
-        #if self.rhsm_encrypt_pass:
-        #    self.encrypt_password(self.rhsm_encrypted_password, self.rhsm_password)
+        if self.rhsm_encrypt_pass:
+            self.encrypt_password(self.rhsm_encrypted_password, self.rhsm_password)
+            self.encrypt_password(self.rhsm_encrypted_proxy_password, self.rhsm_proxy_password)
 
-        #if self.encrypt_pass:
-        #    self.encrypt_password(self.encrypted_password, self.password)
+        if self.encrypt_pass:
+            self.encrypt_password(self.encrypted_password, self.password)
 
         for field in self.all_fields :
             if field == "sat_password" and self.sat_encrypt_pass or \
                 field == "rhsm_password" and self.rhsm_encrypt_pass or \
+                field == "rhsm_proxy_password" and self.rhsm_encrypt_pass or \
                 field == "password" and self.encrypt_pass:
                 continue
 
@@ -221,7 +235,6 @@ class VirtConfig(object):
         parser = self.parse_config()
         for section in parser.sections():
             config = Config.fromParser(section, parser)
-            #config.checkOptions(self.logger)
         return config
 
     def is_rhel6_or_below(self):

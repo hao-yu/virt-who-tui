@@ -13,7 +13,7 @@ class TextBox(urwid.Edit):
         self.textbox_map = urwid.AttrMap(self, notfocus, focus)
 
     def column(self):
-        return urwid.Columns([(15, self.caption_label), self.textbox_map], dividechars=1)
+        return urwid.Columns([(17, self.caption_label), (50, self.textbox_map)], dividechars=1)
 
 
 class LabelBox(urwid.Text):
@@ -70,9 +70,10 @@ class TuiContainerDisplay(object):
         self.main = urwid.AttrWrap(w, 'border')
 
     def run(self):
-        loop = urwid.MainLoop(self.main, self.palette)
+        self.loop = urwid.MainLoop(self.main, self.palette)
         try:
-            loop.run()
+            self.loop.run()
+            return 0, ""
         except Exception as e:
             tb = StringIO.StringIO()
             traceback.print_exc(file=tb)
@@ -135,6 +136,7 @@ class TuiDisplay(object):
 
     def refresh_body(self):
         self.contents[:] = self.body
+        self.container.loop.draw_screen()
 
     def set_current(self):
         self.container.body.original_widget = self.current_frame
@@ -207,7 +209,6 @@ class PopUpTuiDisplay(FormTuiDisplay):
         self.current_widget = self.container.body.original_widget
         self.pop_up = None
         self.remove_button("Quit")
-        self.add_button("OK", self.close)
 
     def close(self, button):
         if self.pop_up:
@@ -227,8 +228,13 @@ class PopUpTuiDisplay(FormTuiDisplay):
         w = urwid.Columns([w,('fixed', 2, urwid.AttrWrap(urwid.Filler(urwid.Text(('border', '  ')), "top"), 'shadow'))])
         w = urwid.Frame(w, footer=urwid.AttrWrap(urwid.Text(('border', '  ')),'shadow'))
         self.pop_up = w
-        widget = urwid.Overlay(self.pop_up, self.current_widget, ('fixed left', 5), 60, ('fixed top',10), 15)
+        widget = urwid.Overlay(self.pop_up, self.current_widget, ('fixed left', 5), 60, ('fixed top',10), 20)
         self.container.body.original_widget = widget
+
+class OkPopUpTuiDisplay(PopUpTuiDisplay):
+    def __init__(self, *args, **kwargs):
+        super(OkPopUpTuiDisplay, self).__init__(*args, **kwargs)
+        self.add_button("OK", self.close)
 
 class YesNoPopUpTuiDisplay(PopUpTuiDisplay):
     def __init__(self, *args, **kwargs):

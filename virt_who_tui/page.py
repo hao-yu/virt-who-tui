@@ -3,7 +3,7 @@ import os
 import urwid
 import logging
 
-from virt_who_tui.display import FormTuiDisplay, PopUpTuiDisplay, YesNoPopUpTuiDisplay
+from virt_who_tui.display import FormTuiDisplay, OkPopUpTuiDisplay, YesNoPopUpTuiDisplay
 
 from virtwho.config import InvalidOption
 from virtwho.password import UnwritableKeyFile, InvalidKeyFile
@@ -27,9 +27,9 @@ class FormBase(object):
 
         return self.form.render()
 
-    def error_pop_up(self, title, contents):
-        dialog = PopUpTuiDisplay(self.container)
-        dialog.title = ('error', title)
+    def pop_up(self, title, contents, status='error'):
+        dialog = OkPopUpTuiDisplay(self.container)
+        dialog.title = (status, title)
         dialog.render(contents)
 
     def yesno_pop_up(self, title, contents, on_yes):
@@ -45,7 +45,7 @@ class FormBase(object):
             if self.validate():
                 self.render_next_page()
         except InvalidOption as e:
-            self.error_pop_up("Failed with following errors:", [str(e)])
+            self.pop_up("Failed with following errors:", [str(e)])
 
     def go_back(self, button):
         self.previous_page.form.set_current()
@@ -61,6 +61,8 @@ class FormBase(object):
             field = args[0] if isinstance(args, list) else args
             if not hasattr(self.form, field):
                 continue
+            # Clear old value
+            setattr(self.input_data, field, None)
             element = getattr(self.form, field)
             if isinstance(element, urwid.CheckBox):
                 value = element.state
@@ -81,7 +83,7 @@ class WelcomePage(FormBase):
         super(WelcomePage, self).__init__(*args, **kwargs)
         self.form.title = "Welcome to Virt-who TUI"
         self.form.text = "Virt-who TUI aims to simplify the complexity of settings up virt-who by guiding users step by step.\n\n" + \
-            "Please enter a name for your configuration. It can be any name that is meaningful to you, such as 'redhat-rhevm-prod'."
+            "Please enter a name for your configuration. It can be any name that is meaningful to you, such as 'redhat_rhevm_prod'."
         self.form.add_field("config_name", "text", label="Name")
         self.next_page = SMPage
 
@@ -103,11 +105,16 @@ class SMPage(FormBase):
     def __init__(self, *args, **kwargs):
         super(SMPage, self).__init__(*args, **kwargs)
         self.form.title = "Subscription Manager"
-        self.form.text = "Choose where the host/guest associations should be reported:"
+        self.form.text = "Choose where the host/guest associations should be reported.\n\n" + \
+            "NOTE: Choose 'Red Hat Subscription Manager (RHSM)' if the host you are running " + \
+            "'virt-who' is registered to Satellite 6 or RHSM."
         self.form.add_field("smType", "radio", label=self.input_data.SM_MAP.keys())
+        # Set RHSM to default
+        self.form.smType[0].set_state(True)
         self.next_page = SMConfigPage
 
     def go_next(self, button):
+        self.input_data.smType = None
         for v in self.form.smType:
             if not v.state:
                 continue
@@ -130,10 +137,15 @@ class SMConfigPage(FormBase):
             ["sat_encrypt_pass", "check",    "Encrypt Password?", 2],
         ],
         "rhsm": [
-            ["rhsm_hostname",     "text",     "Hostname",          0],
-            ["rhsm_username",     "text",     "Username",          0],
-            ["rhsm_password",     "password", "Password",          0],
-            ["rhsm_encrypt_pass", "check",    "Encrypt Password?", 2],
+            ["rhsm_hostname",       "text",     "Hostname",          0],
+            ["rhsm_port",           "text",     "Port",              0],
+            ["rhsm_username",       "text",     "Username",          0],
+            ["rhsm_password",       "password", "Password",          0],
+            ["rhsm_proxy_hostname", "text",     "Proxy Hostname",    0],
+            ["rhsm_proxy_port",     "text",     "Proxy Port",        0],
+            ["rhsm_proxy_user",     "text",     "Proxy Username",    0],
+            ["rhsm_proxy_password", "password", "Proxy Password",    0],
+            ["rhsm_encrypt_pass",   "check",    "Encrypt Password?", 2],
         ],
     }
 
@@ -146,7 +158,7 @@ class SMConfigPage(FormBase):
         self.form.text = "Please enter Subscripton Manager details."
 
         if self.prefix == "rhsm":
-            self.form.text += " All fields below are OPTIONAL."
+            self.form.text += "\n\nAll fields are OPTIONAL."
 
         for args in self.FIELDS[self.prefix]:
             self.form.add_field(args[0], args[1], label=args[2], div=args[3])
@@ -174,6 +186,7 @@ class VirtPage(FormBase):
         self.next_page = VirtConfigPage
 
     def go_next(self, button):
+        self.input_data.type = None
         for v in self.form.virtual:
             if not v.state:
                 continue
@@ -231,78 +244,76 @@ class DetailPage(FormBase):
 
     def render(self):
         out = super(DetailPage, self).render()
+        self.container.loop.draw_screen()
+        self.process()
+        return out
 
-        self.form.print_text("get_config", label="Configuring your settings")
-        has_error = False
-
+    def process(self):
         try:
+            self.form.print_text("get_config", label="Configuring your settings")
             config = self.input_data.get_config()
             self.set_pass_state(self.form.get_config)
+
+            has_error = False
+
+            # Test to connect to the subscription manager
+            self.form.print_text("check_sm_connection", label="Connecting to Subscription Manager")
+            errors = self.input_data.check_sm_connection(config)
+            if errors:
+                self.pop_up("Failed to connect to '%s' server" % self.input_data.smType_label, errors)
+                self.set_fail_state(self.form.check_sm_connection)
+                has_error = True
+            else:
+                self.set_pass_state(self.form.check_sm_connection)
+
+            # Test to connect to the virtualization backend
+            self.form.print_text("check_virt_connection", label="Connecting to Virtualization Backend")
+            errors = self.input_data.check_virt_connection(config)
+            if errors:
+                self.pop_up("Failed to connect to '%s' server" %  self.input_data.humanize_type(), errors)
+                self.set_fail_state(self.form.check_virt_connection)
+                has_error = True
+            else:
+                self.set_pass_state(self.form.check_virt_connection)
+
+            if has_error:
+                return
+
+            # Write the settings to file
+            self.form.print_text("write_config", label="Writing configuraton file")
+            self.input_data.to_ini()
+            self.set_pass_state(self.form.write_config)
+
+            # Start virt-who service
+            self.form.print_text("start_service", label="Starting virth-who service")
+            error = self.input_data.start_virt_who()
+            if error:
+                self.pop_up("Failed to start virt-who service", [error])
+                self.set_fail_state(self.form.start_service)
+                return
+
+            self.set_pass_state(self.form.start_service)
+
+            # Enable virt-who service
+            self.form.print_text("enable_service", label="Enabling virth-who service")
+            error = self.input_data.enable_virt_who()
+            if error:
+                self.pop_up("Failed to enable virt-who service", [error])
+                self.set_fail_state(self.form.enable_service)
+                return
+
+            self.set_pass_state(self.form.enable_service)
         except (UnwritableKeyFile, InvalidKeyFile, ValueError) as e:
             if isinstance(e, ValueError):
                 error = "Failed to parse configuration"
             else:
                 error = "Failed encrypt password."
-            self.error_pop_up(error, [repr(e)])
+            self.pop_up(error, [repr(e)])
             self.set_fail_state(self.form.get_config)
-            return out
-
-        # Test to connect to the subscription manager
-        self.form.print_text("check_sm_connection", label="Connecting to Subscription Manager")
-
-        errors = self.input_data.check_sm_connection(config)
-        if errors:
-            self.error_pop_up("Failed to connect to '%s' server" % self.input_data.smType_label, errors)
-            self.set_fail_state(self.form.check_sm_connection)
-            has_error = True
-        else:
-            self.set_pass_state(self.form.check_sm_connection)
-
-        # Test to connect to the virtualization backend
-        self.form.print_text("check_virt_connection", label="Connecting to Virtualization Backend")
-
-        errors = self.input_data.check_virt_connection(config)
-        if errors:
-            self.error_pop_up("Failed to connect to '%s' server" %  self.input_data.humanize_type(), errors)
-            self.set_fail_state(self.form.check_virt_connection)
-            has_error = True
-        else:
-            self.set_pass_state(self.form.check_virt_connection)
-
-        if has_error:
-            return out
-
-        # Write the settings to file
-        self.form.print_text("write_config", label="Writing configuraton file")
-
-        try:
-            self.input_data.to_ini()
-            self.set_pass_state(self.form.write_config)
+            return
         except IOError as e:
-            self.error_pop_up("Failed to create '%s' configuration file:" % self.input_data.filename(), [repr(e)])
+            self.pop_up("Failed to create '%s' configuration file:" % self.input_data.filename(), [repr(e)])
             self.set_fail_state(self.form.write_config)
-            return out
+            return
 
-        # Start virt-who service
-        self.form.print_text("start_service", label="Starting virth-who service")
-
-        error = self.input_data.start_virt_who()
-        if error:
-            self.error_pop_up("Failed to start virt-who service", [error])
-            self.set_fail_state(self.form.start_service)
-            return out
-
-        self.set_pass_state(self.form.start_service)
-
-        # Enable virt-who service
-        self.form.print_text("enable_service", label="Enabling virth-who service")
-
-        error = self.input_data.enable_virt_who()
-        if error:
-            self.error_pop_up("Failed to enable virt-who service", [error])
-            self.set_fail_state(self.form.enable_service)
-            return out
-
-        self.set_pass_state(self.form.enable_service)
-
-        return out
+        self.pop_up("Congratulation!!!", ["Virt-who service has been started successfully. Press 'Quit' button to exit this application"], status="pass")

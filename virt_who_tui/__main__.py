@@ -13,7 +13,7 @@ def main():
         sys.exit(1)
 
     virt_config = VirtConfig()
-    container = TuiContainerDisplay(virt_config.logger, 70, 70)
+    container = TuiContainerDisplay(virt_config.logger, 80, 80)
     WelcomePage(container, input_data=virt_config).render()
     exitcode, error = container.run()
 
