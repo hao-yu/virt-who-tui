@@ -208,15 +208,19 @@ class VirtConfigPage(FormBase):
 
         server_help = None
         if self.input_data.type == "libvirt":
-            server_help = "e.g. qemu://host.example.com/system"
+            server_help = "e.g. qemu+ssh://host.example.com/system"
         elif self.input_data.type in ["xen", "rhevm", "esx"]:
             server_help = "e.g. https://host.example.com"
 
+        username_help = None
+        if self.input_data.type == "rhevm":
+            username_help = "e.g. admin@internal"
+
         self.form.text = "Please virtualization backend details:"
-        self.form.add_field("owner",             "text",     label="Organization", help="Can be retrieved by executing 'subscription-manager orgs' command. e.g. 6340056")
+        self.form.add_field("owner",             "text",     label="Organization", help="Can be retrieved by executing 'subscription-manager orgs' command. e.g. 1234567")
         self.form.add_field("env",               "text",     label="Environment",  help="e.g. Library")
         self.form.add_field("server",            "text",     label="Server",       help=server_help)
-        self.form.add_field("username",          "text",     label="Username")
+        self.form.add_field("username",          "text",     label="Username",     help=username_help)
         self.form.add_field("password",          "password", label="Password")
         self.form.add_field("hypervisor_label",  "label",    label="How will be the hypervisor identified", value="", div=2, label_size=50)
         self.form.add_field("hypervisor_id",     "radio",    label=self.input_data.HYPERVISOR_IDS)

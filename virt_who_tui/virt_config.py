@@ -5,6 +5,7 @@ import subprocess
 import socket
 import platform
 import logging
+import StringIO
 from requests.exceptions import ConnectionError
 from virtwho.virt import Virt
 from virtwho.virt.vdsm import Vdsm
@@ -170,6 +171,13 @@ class VirtConfig(object):
             virt._getLocalVdsName = _getLocalVdsName
 
         try:
+            # Prevent any warning messages to be printed out to the screen. For example:
+            # certificate warning. Print them to the log instead.
+            out = StringIO.StringIO()
+            orig_stdout = sys.stdout
+            orig_stderr = sys.stderr
+            sys.stdout = out
+            sys.stderr = out
             # Perform a one shot report request to test the connection
             virt.start_sync(queue, event, None, True)
         except (VirtError, socket.error) as e:
@@ -184,6 +192,9 @@ class VirtConfig(object):
                     errors = ["Please make sure the server port is open."] + errors
                     break
         finally:
+            self.logger.info(out.getvalue())
+            sys.stdout = orig_stdout
+            sys.stderr = orig_stderr
             virt.extra_errors.close()
             virt.extra_errors = None
 
@@ -199,7 +210,7 @@ class VirtConfig(object):
         filename = ".".join([self.config_name.lower().replace(" ", "_"), "conf"])
         return "/".join([self.CONFIG_DIR, filename])
 
-    def parse_config(self):
+    def to_ini(self):
         parser = SafeConfigParser()
         parser.add_section(self.config_name)
 
@@ -213,7 +224,7 @@ class VirtConfig(object):
         if self.encrypt_pass:
             self.encrypt_password(self.encrypted_password, self.password)
 
-        for field in self.all_fields :
+        for field in self.all_fields:
             if field == "sat_password" and self.sat_encrypt_pass or \
                 field == "rhsm_password" and self.rhsm_encrypt_pass or \
                 field == "rhsm_proxy_password" and self.rhsm_encrypt_pass or \
@@ -224,15 +235,19 @@ class VirtConfig(object):
             if value:
                 parser.set(self.config_name, field, value)
 
-        return parser
-
-    def to_ini(self):
         with open(self.filename(), 'wb') as fh:
-            self.parse_config().write(fh)
+            parser.write(fh)
 
     def get_config(self):
         config = None
-        parser = self.parse_config()
+        parser = SafeConfigParser()
+        parser.add_section(self.config_name)
+
+        for field in self.all_fields:
+            value = getattr(self, field)
+            if value:
+                parser.set(self.config_name, field, value)
+
         for section in parser.sections():
             config = Config.fromParser(section, parser)
         return config
