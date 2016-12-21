@@ -3,7 +3,7 @@ Version:        0.1
 Release:        1%{?dist}
 Summary:        A Text-based user interface for configuring virt-who
 License:        GPLv2+
-URL:            https://fedorahosted.org/virt-who-tui/
+URL:            https://github.com/hao-yu/virt-who-tui.git
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildArch:      noarch

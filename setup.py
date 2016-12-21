@@ -8,7 +8,7 @@ setup(
     author='Hao Chang Yu',
     author_email='hyu@redhat.com',
     license='GPLv2+',
-    url='https://fedorahosted.org/virt-who-tui/',
+    url='https://github.com/hao-yu/virt-who-tui.git',
     packages=find_packages(),
     entry_points={
         'console_scripts': [
