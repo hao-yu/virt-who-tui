@@ -213,7 +213,7 @@ class VirtConfigPage(FormBase):
             server_help = "e.g. https://host.example.com"
 
         self.form.text = "Please virtualization backend details:"
-        self.form.add_field("owner",             "text",     label="Organization", help="Can be retrieved by executing 'subscription-manager orgs' command Example: 6340056")
+        self.form.add_field("owner",             "text",     label="Organization", help="Can be retrieved by executing 'subscription-manager orgs' command. e.g. 6340056")
         self.form.add_field("env",               "text",     label="Environment",  help="e.g. Library")
         self.form.add_field("server",            "text",     label="Server",       help=server_help)
         self.form.add_field("username",          "text",     label="Username")
