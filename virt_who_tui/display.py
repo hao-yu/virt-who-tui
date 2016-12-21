@@ -43,7 +43,7 @@ class TuiContainerDisplay(object):
         ('error',      'white',      'dark red'),
         ('fail',       'dark red',   'light gray'),
         ('pass',       'dark green', 'light gray'),
-        ('help',       'dark gray',  'light gray')
+        ('help',       'light blue', 'light gray')
     ]
 
     def __init__(self, logger, height, width):

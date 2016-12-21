@@ -6,6 +6,7 @@ import socket
 import platform
 import logging
 import StringIO
+from binascii import hexlify
 from requests.exceptions import ConnectionError
 from virtwho.virt import Virt
 from virtwho.virt.vdsm import Vdsm
@@ -200,11 +201,22 @@ class VirtConfig(object):
 
         return errors
 
-    def encrypt_password(self, field, password):
+    def _encrypt_password(self, field, password):
         if not password:
             return None
-        field = Password.encrypt(password)
-        return field
+        setattr(self, field, hexlify(Password.encrypt(password)))
+        getattr(self, field)
+
+    def encrypt_passwords(self):
+        if self.sat_encrypt_pass:
+            self._encrypt_password("sat_encrypted_password", self.sat_password)
+
+        if self.rhsm_encrypt_pass:
+            self._encrypt_password("rhsm_encrypted_password", self.rhsm_password)
+            self._encrypt_password("rhsm_encrypted_proxy_password", self.rhsm_proxy_password)
+
+        if self.encrypt_pass:
+            self._encrypt_password("encrypted_password", self.password)
 
     def filename(self):
         filename = ".".join([self.config_name.lower().replace(" ", "_"), "conf"])
@@ -213,16 +225,6 @@ class VirtConfig(object):
     def to_ini(self):
         parser = SafeConfigParser()
         parser.add_section(self.config_name)
-
-        if self.sat_encrypt_pass:
-            self.encrypt_password(self.sat_encrypted_password, self.sat_password)
-
-        if self.rhsm_encrypt_pass:
-            self.encrypt_password(self.rhsm_encrypted_password, self.rhsm_password)
-            self.encrypt_password(self.rhsm_encrypted_proxy_password, self.rhsm_proxy_password)
-
-        if self.encrypt_pass:
-            self.encrypt_password(self.encrypted_password, self.password)
 
         for field in self.all_fields:
             if field == "sat_password" and self.sat_encrypt_pass or \

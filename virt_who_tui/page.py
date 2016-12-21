@@ -222,7 +222,7 @@ class VirtConfigPage(FormBase):
         self.form.add_field("server",            "text",     label="Server",       help=server_help)
         self.form.add_field("username",          "text",     label="Username",     help=username_help)
         self.form.add_field("password",          "password", label="Password")
-        self.form.add_field("hypervisor_label",  "label",    label="How will be the hypervisor identified", value="", div=2, label_size=50)
+        self.form.add_field("hypervisor_label",  "label",    label="How will be the hypervisor identified?", value="", div=2, label_size=50)
         self.form.add_field("hypervisor_id",     "radio",    label=self.input_data.HYPERVISOR_IDS)
         self.form.add_field("encrypt_pass",      "check",    label="Encrypt Password?", div=2)
         # Set uuid as default hypervisor id
@@ -263,6 +263,7 @@ class DetailPage(FormBase):
     def process(self):
         try:
             self.form.print_text("get_config", label="Configuring your settings")
+            self.input_data.encrypt_passwords()
             config = self.input_data.get_config()
             self.set_pass_state(self.form.get_config)
 
