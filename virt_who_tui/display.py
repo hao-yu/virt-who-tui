@@ -19,14 +19,15 @@ class TextBox(urwid.Edit):
 class LabelBox(urwid.Text):
     def __init__(self, caption, *args, **kwargs):
         super(LabelBox, self).__init__(*args, **kwargs)
-        self.caption_label = urwid.Text(u"%s: " % caption)
+        self.caption_label = urwid.Text(caption)
+        self.caption_size = 17
         self.labelbox_map = self
 
     def set_attr_field(self, notfocus, focus):
         self.labelbox_map = urwid.AttrMap(self, notfocus, focus)
 
     def column(self):
-        return urwid.Columns([(50, self.caption_label), self.labelbox_map], dividechars=1)
+        return urwid.Columns([(self.caption_size, self.caption_label), self.labelbox_map], dividechars=1)
 
 
 class TuiContainerDisplay(object):
@@ -42,6 +43,7 @@ class TuiContainerDisplay(object):
         ('error',      'white',      'dark red'),
         ('fail',       'dark red',   'light gray'),
         ('pass',       'dark green', 'light gray'),
+        ('help',       'dark gray',  'light gray')
     ]
 
     def __init__(self, logger, height, width):
@@ -154,6 +156,8 @@ class FormTuiDisplay(TuiDisplay):
     def add_field(self, name, ftype, **kwargs):
         div = kwargs.get("div", 0)
         label = kwargs.get("label")
+        label_size = kwargs.get("label_size", 17)
+        help_msg = kwargs.get("help")
         value = kwargs.get("value", "")
 
         if not label:
@@ -172,8 +176,14 @@ class FormTuiDisplay(TuiDisplay):
             textbox.set_attr_field('inputtext', 'focustext')
             setattr(self, name, textbox)
             input_fields.append(textbox.column())
+            if help_msg:
+                labelbox = LabelBox("", help_msg)
+                labelbox.set_attr_field('help', None)
+                labelbox.caption_size = label_size
+                input_fields.append(labelbox.column())
         elif ftype == 'label':
             labelbox = LabelBox(label, value)
+            labelbox.caption_size = label_size
             labelbox.set_attr_field(None, None)
             setattr(self, name, labelbox)
             input_fields.append(labelbox.column())
@@ -199,6 +209,8 @@ class FormTuiDisplay(TuiDisplay):
         self.body += input_fields
 
     def print_text(self, name, **kwargs):
+        if not kwargs.get("label_size"):
+            kwargs["label_size"] = 50
         self.add_field(name, 'label', **kwargs)
         self.refresh_body()
 

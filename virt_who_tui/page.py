@@ -5,6 +5,7 @@ import logging
 
 from virt_who_tui.display import FormTuiDisplay, OkPopUpTuiDisplay, YesNoPopUpTuiDisplay
 
+from virtwho import log
 from virtwho.config import InvalidOption
 from virtwho.password import UnwritableKeyFile, InvalidKeyFile
 
@@ -83,7 +84,8 @@ class WelcomePage(FormBase):
         super(WelcomePage, self).__init__(*args, **kwargs)
         self.form.title = "Welcome to Virt-who TUI"
         self.form.text = "Virt-who TUI aims to simplify the complexity of settings up virt-who by guiding users step by step.\n\n" + \
-            "Please enter a name for your configuration. It can be any name that is meaningful to you, such as 'redhat_rhevm_prod'."
+            "NOTE: Before proceeding, please make sure that this host is regristered to RHSM or Satellite server.\n\n" + \
+            "Please enter a name for your configuration. It can be any name that is meaningful to you, such as 'redhat_rhevm_library'."
         self.form.add_field("config_name", "text", label="Name")
         self.next_page = SMPage
 
@@ -106,8 +108,7 @@ class SMPage(FormBase):
         super(SMPage, self).__init__(*args, **kwargs)
         self.form.title = "Subscription Manager"
         self.form.text = "Choose where the host/guest associations should be reported.\n\n" + \
-            "NOTE: Choose 'Red Hat Subscription Manager (RHSM)' if the host you are running " + \
-            "'virt-who' is registered to Satellite 6 or RHSM."
+            "NOTE: Choose 'Red Hat Subscription Manager (RHSM)' if this host is registered to Satellite 6 or RHSM."
         self.form.add_field("smType", "radio", label=self.input_data.SM_MAP.keys())
         # Set RHSM to default
         self.form.smType[0].set_state(True)
@@ -204,13 +205,20 @@ class VirtConfigPage(FormBase):
         super(VirtConfigPage, self).__init__(*args, **kwargs)
         self.virt_name = self.input_data.humanize_type()
         self.form.title = self.virt_name
+
+        server_help = None
+        if self.input_data.type == "libvirt":
+            server_help = "e.g. qemu://host.example.com/system"
+        elif self.input_data.type in ["xen", "rhevm", "esx"]:
+            server_help = "e.g. https://host.example.com"
+
         self.form.text = "Please virtualization backend details:"
-        self.form.add_field("owner",             "text",     label="Organization")
-        self.form.add_field("env",               "text",     label="Environment")
-        self.form.add_field("server",            "text",     label="Server")
+        self.form.add_field("owner",             "text",     label="Organization", help="Can be retrieved by executing 'subscription-manager orgs' command Example: 6340056")
+        self.form.add_field("env",               "text",     label="Environment",  help="e.g. Library")
+        self.form.add_field("server",            "text",     label="Server",       help=server_help)
         self.form.add_field("username",          "text",     label="Username")
         self.form.add_field("password",          "password", label="Password")
-        self.form.add_field("hypervisor_label",  "label",    label="How will be the hypervisor identified", value="", div=2)
+        self.form.add_field("hypervisor_label",  "label",    label="How will be the hypervisor identified", value="", div=2, label_size=50)
         self.form.add_field("hypervisor_id",     "radio",    label=self.input_data.HYPERVISOR_IDS)
         self.form.add_field("encrypt_pass",      "check",    label="Encrypt Password?", div=2)
         # Set uuid as default hypervisor id
@@ -316,4 +324,7 @@ class DetailPage(FormBase):
             self.set_fail_state(self.form.write_config)
             return
 
-        self.pop_up("Congratulation!!!", ["Virt-who service has been started successfully. Press 'Quit' button to exit this application"], status="pass")
+        self.pop_up("Congratulation!!!", [
+            "Virt-who configuration has been completed successfully. " + \
+            "Please check the virt-who log in '%s/%s' for more information. \n\n" % (log.DEFAULT_LOG_DIR, log.DEFAULT_LOG_FILE) + \
+            "Press 'Quit' button to exit this application"], status="pass")

@@ -240,7 +240,7 @@ class VirtConfig(object):
     def is_rhel6_or_below(self):
         dist = platform.dist()
         match = re.match("^([^.]+)", dist[1])
-        if dist[0] == "redhat" and match and int(match.group(0)) < 7:
+        if dist[0] in ["redhat", "centos"] and match and int(match.group(0)) < 7:
             return True
         return False
 
