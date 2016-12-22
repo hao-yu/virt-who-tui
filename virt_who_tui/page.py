@@ -84,7 +84,7 @@ class WelcomePage(FormBase):
         super(WelcomePage, self).__init__(*args, **kwargs)
         self.form.title = "Welcome to Virt-who TUI"
         self.form.text = "Virt-who TUI aims to simplify the complexity of settings up virt-who by guiding users step by step.\n\n" + \
-            "NOTE: Before proceeding, please make sure that this host is regristered to RHSM or Satellite server.\n\n" + \
+            "NOTE: Before proceeding, please make sure that this host is registered to RHSM or Satellite server.\n\n" + \
             "Please enter a name for your configuration. It can be any name that is meaningful to you, such as 'redhat_rhevm_library'."
         self.form.add_field("config_name", "text", label="Name")
         self.next_page = SMPage
@@ -222,7 +222,7 @@ class VirtConfigPage(FormBase):
         self.form.add_field("server",            "text",     label="Server",       help=server_help)
         self.form.add_field("username",          "text",     label="Username",     help=username_help)
         self.form.add_field("password",          "password", label="Password")
-        self.form.add_field("hypervisor_label",  "label",    label="How will be the hypervisor identified?", value="", div=2, label_size=50)
+        self.form.add_field("hypervisor_label",  "label",    label="How will the hypervisor(s) be identified?", value="", div=2, label_size=50)
         self.form.add_field("hypervisor_id",     "radio",    label=self.input_data.HYPERVISOR_IDS)
         self.form.add_field("encrypt_pass",      "check",    label="Encrypt Password?", div=2)
         # Set uuid as default hypervisor id
@@ -298,7 +298,7 @@ class DetailPage(FormBase):
             self.set_pass_state(self.form.write_config)
 
             # Start virt-who service
-            self.form.print_text("start_service", label="Starting virth-who service")
+            self.form.print_text("start_service", label="Starting virt-who service")
             error = self.input_data.start_virt_who()
             if error:
                 self.pop_up("Failed to start virt-who service", [error])
@@ -308,7 +308,7 @@ class DetailPage(FormBase):
             self.set_pass_state(self.form.start_service)
 
             # Enable virt-who service
-            self.form.print_text("enable_service", label="Enabling virth-who service")
+            self.form.print_text("enable_service", label="Enabling virt-who service")
             error = self.input_data.enable_virt_who()
             if error:
                 self.pop_up("Failed to enable virt-who service", [error])
@@ -329,7 +329,7 @@ class DetailPage(FormBase):
             self.set_fail_state(self.form.write_config)
             return
 
-        self.pop_up("Congratulation!!!", [
+        self.pop_up("Congratulations!!!", [
             "Virt-who configuration has been completed successfully. " + \
             "Please check the virt-who log in '%s/%s' for more information. \n\n" % (log.DEFAULT_LOG_DIR, log.DEFAULT_LOG_FILE) + \
             "Press 'Quit' button to exit this application"], status="pass")
