@@ -32,7 +32,7 @@ class VirtConfig(object):
 
     SM_MAP = {
         "Red Hat Subscription Manager (RHSM)": "rhsm",
-        "Satellite 5": "sat",
+        "Satellite 6": "sat",
     }
 
     HYPERVISOR_IDS = ["uuid", "hostname", "hwuuid"]
@@ -105,9 +105,9 @@ class VirtConfig(object):
         if self.smType != "sat":
             return
         elif not self.sat_server:
-            raise InvalidOption("Please specify URL of Satellite 5.")
+            raise InvalidOption("Please specify URL of Satellite 6.")
         elif not self.sat_username or not self.sat_password:
-            raise InvalidOption("Please specify username and password of Satellite 5.")
+            raise InvalidOption("Please specify username and password of Satellite 6.")
 
     def validate_virt_config(self):
         self.validate_virt_type()
