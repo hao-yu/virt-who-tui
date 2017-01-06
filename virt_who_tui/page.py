@@ -175,6 +175,8 @@ class SMConfigPage(FormBase):
 
     def validate(self):
         self.input_data.validate_satellite_config()
+        for field in ["rhsm_port", "rhsm_proxy_port"]:
+            self.input_data.validate_integer(field)
         return True
 
 

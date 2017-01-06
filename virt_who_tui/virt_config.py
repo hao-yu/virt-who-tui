@@ -85,6 +85,11 @@ class VirtConfig(object):
                 return k
         raise InvalidOption("'%s' is not a supported virtualization backend." % self.type)
 
+    def validate_integer(self, field):
+        val = getattr(self, field)
+        if val and not val.isdigit():
+            raise InvalidOption("'%s' must be an integer." % field.title().replace("_", " "))
+
     def validate_config_name(self):
         if not self.config_name:
             raise InvalidOption("Please enter a name for your configuration")
