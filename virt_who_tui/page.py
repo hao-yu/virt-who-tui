@@ -261,61 +261,10 @@ class DetailPage(FormBase):
         return out
 
     def process(self):
+        self.form.print_text("get_config", label="Configuring your settings")
         try:
-            self.form.print_text("get_config", label="Configuring your settings")
             self.input_data.encrypt_passwords()
             config = self.input_data.get_config()
-            self.set_pass_state(self.form.get_config)
-
-            has_error = False
-
-            # Test to connect to the subscription manager
-            self.form.print_text("check_sm_connection", label="Connecting to Subscription Manager")
-            errors = self.input_data.check_sm_connection(config)
-            if errors:
-                self.pop_up("Failed to connect to '%s' server" % self.input_data.smType_label, errors)
-                self.set_fail_state(self.form.check_sm_connection)
-                has_error = True
-            else:
-                self.set_pass_state(self.form.check_sm_connection)
-
-            # Test to connect to the virtualization backend
-            self.form.print_text("check_virt_connection", label="Connecting to Virtualization Backend")
-            errors = self.input_data.check_virt_connection(config)
-            if errors:
-                self.pop_up("Failed to connect to '%s' server" %  self.input_data.humanize_type(), errors)
-                self.set_fail_state(self.form.check_virt_connection)
-                has_error = True
-            else:
-                self.set_pass_state(self.form.check_virt_connection)
-
-            if has_error:
-                return
-
-            # Write the settings to file
-            self.form.print_text("write_config", label="Writing configuraton file")
-            self.input_data.to_ini()
-            self.set_pass_state(self.form.write_config)
-
-            # Start virt-who service
-            self.form.print_text("start_service", label="Starting virt-who service")
-            error = self.input_data.start_virt_who()
-            if error:
-                self.pop_up("Failed to start virt-who service", [error])
-                self.set_fail_state(self.form.start_service)
-                return
-
-            self.set_pass_state(self.form.start_service)
-
-            # Enable virt-who service
-            self.form.print_text("enable_service", label="Enabling virt-who service")
-            error = self.input_data.enable_virt_who()
-            if error:
-                self.pop_up("Failed to enable virt-who service", [error])
-                self.set_fail_state(self.form.enable_service)
-                return
-
-            self.set_pass_state(self.form.enable_service)
         except (UnwritableKeyFile, InvalidKeyFile, ValueError) as e:
             if isinstance(e, ValueError):
                 error = "Failed to parse configuration"
@@ -324,10 +273,63 @@ class DetailPage(FormBase):
             self.pop_up(error, [repr(e)])
             self.set_fail_state(self.form.get_config)
             return
+
+        self.set_pass_state(self.form.get_config)
+
+        has_error = False
+
+        # Test to connect to the subscription manager
+        self.form.print_text("check_sm_connection", label="Connecting to Subscription Manager")
+        errors = self.input_data.check_sm_connection(config)
+        if errors:
+            self.pop_up("Failed to connect to '%s' server" % self.input_data.smType_label, errors)
+            self.set_fail_state(self.form.check_sm_connection)
+            has_error = True
+        else:
+            self.set_pass_state(self.form.check_sm_connection)
+
+        # Test to connect to the virtualization backend
+        self.form.print_text("check_virt_connection", label="Connecting to Virtualization Backend")
+        errors = self.input_data.check_virt_connection(config)
+        if errors:
+            self.pop_up("Failed to connect to '%s' server" %  self.input_data.humanize_type(), errors)
+            self.set_fail_state(self.form.check_virt_connection)
+            has_error = True
+        else:
+            self.set_pass_state(self.form.check_virt_connection)
+
+        if has_error:
+            return
+
+        # Write the settings to file
+        try:
+            self.form.print_text("write_config", label="Writing configuraton file")
+            self.input_data.to_ini()
+            self.set_pass_state(self.form.write_config)
         except IOError as e:
             self.pop_up("Failed to create '%s' configuration file:" % self.input_data.filename(), [repr(e)])
             self.set_fail_state(self.form.write_config)
             return
+
+        # Start virt-who service
+        self.form.print_text("start_service", label="Starting virt-who service")
+        error = self.input_data.start_virt_who()
+        if error:
+            self.pop_up("Failed to start virt-who service", [error])
+            self.set_fail_state(self.form.start_service)
+            return
+
+        self.set_pass_state(self.form.start_service)
+
+        # Enable virt-who service
+        self.form.print_text("enable_service", label="Enabling virt-who service")
+        error = self.input_data.enable_virt_who()
+        if error:
+            self.pop_up("Failed to enable virt-who service", [error])
+            self.set_fail_state(self.form.enable_service)
+            return
+
+        self.set_pass_state(self.form.enable_service)
 
         self.pop_up("Congratulations!!!", [
             "Virt-who configuration has been completed successfully. " + \

@@ -146,6 +146,9 @@ class VirtConfig(object):
         except Exception as e:
             if issubclass(e.__class__, ManagerError) or issubclass(e.__class__, ManagerFatalError) or isinstance(e, ConnectionError):
                 errors.append(repr(e))
+            elif isinstance(e, socket.error):
+                errors.append(repr(e))
+                errors.append("Please make sure the server port is open.")
             else:
                 raise e
 
