@@ -81,7 +81,7 @@ class TuiContainerDisplay(object):
             traceback.print_exc(file=tb)
             self.logger.error(tb.getvalue())
             tb.close()
-            return e.args[0], repr(e)
+            return 1, repr(e)
 
 class TuiDisplay(object):
     def __init__(self, container):
