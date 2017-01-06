@@ -7,16 +7,14 @@ import platform
 import logging
 import StringIO
 from binascii import hexlify
-from requests.exceptions import ConnectionError
 from virtwho.virt import Virt
 from virtwho.virt.vdsm import Vdsm
 from virtwho.virt.virt import VirtError
 from virtwho.config import Config, InvalidOption
 from virtwho.password import Password
-from virtwho.manager import Manager, ManagerError, ManagerFatalError
 from ConfigParser import SafeConfigParser
 from multiprocessing import Event, Queue
-
+from virt_who_tui.sm_manager import RhsmManager, Sat5Manager
 
 class VirtConfig(object):
     SUPPORTED_VIRT = ('esx', 'rhevm', 'hyperv', 'xen', 'libvirt', 'vdsm')
@@ -131,33 +129,9 @@ class VirtConfig(object):
             if self.server:
                 if ('ssh://' in self.server or '://' not in self.server) and self.password:
                     raise InvalidOption("Password authentication doesn't work with ssh transport on libvirt backend, please copy your public ssh key to the remote machine.")
-            elif self.env:
-                raise InvalidOption("Environment is not used in non-remote libvirt connection.")
-            elif self.owner:
-                raise InvalidOption("Owner is not used in non-remote libvirt connection.")
 
-    def check_sm_connection(self, config):
-        errors = []
-        try:
-            sm_manager = Manager.fromOptions(self.logger, config, config)
-            sm_manager._connect(config)
-            if self.smType == "sat":
-                if hasattr(sm_manager, 'server_xmlrpc'):
-                    server = 'server_xmlrpc'
-                else:
-                    server = 'server'
-                session = getattr(sm_manager, server).auth.login(config.sat_username, config.sat_password)
-                getattr(sm_manager, server).auth.logout(session)
-        except Exception as e:
-            if issubclass(e.__class__, ManagerError) or issubclass(e.__class__, ManagerFatalError) or isinstance(e, ConnectionError):
-                errors.append(repr(e))
-            elif isinstance(e, socket.error):
-                errors.append(repr(e))
-                errors.append("Please make sure the server port is open.")
-            else:
-                raise e
-
-        return errors
+    def get_sm_manager(self, config):
+        return RhsmManager(self.logger, config) if self.smType == "rhsm" else Sat5Manager(self.logger, config)
 
     def check_virt_connection(self, config):
         queue  = Queue()
@@ -241,6 +215,13 @@ class VirtConfig(object):
                 field == "password" and self.encrypt_pass:
                 continue
 
+            # Based on the validation codes in virt-who:
+            # - Environment is not used in non-remote libvirt connection
+            # - Owner is not used in non-remote libvirt connection
+            # Thus, force owner and env to None
+            if self.type == 'libvirt' and not self.server and field in ["owner", "env"]:
+                continue
+
             value = getattr(self, field)
             if value:
                 parser.set(self.config_name, field, value)
@@ -254,6 +235,13 @@ class VirtConfig(object):
         parser.add_section(self.config_name)
 
         for field in self.all_fields:
+            # Based on the validation codes in virt-who:
+            # - Environment is not used in non-remote libvirt connection
+            # - Owner is not used in non-remote libvirt connection
+            # Thus, force owner and env to None
+            if self.type == 'libvirt' and not self.server and field in ["owner", "env"]:
+                continue
+
             value = getattr(self, field)
             if value:
                 parser.set(self.config_name, field, value)

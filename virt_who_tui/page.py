@@ -219,7 +219,12 @@ class VirtConfigPage(FormBase):
             username_help = "e.g. admin@internal"
 
         self.form.text = "Please virtualization backend details:"
-        self.form.add_field("owner",             "text",     label="Organization", help="Can be retrieved by executing 'subscription-manager orgs' command. e.g. 1234567")
+        if self.input_data.smType == "rhsm":
+            # For display purpose, it will be set automatically
+            self.form.add_field("owner_label", "label", label="Organization:", value="Fetching...")
+        else:
+            self.form.add_field("owner", "text", label="Organization", help="Can be retrieved by executing 'subscription-manager orgs' command. e.g. 1234567")
+
         self.form.add_field("env",               "text",     label="Environment",  help="e.g. Library")
         self.form.add_field("server",            "text",     label="Server",       help=server_help)
         self.form.add_field("username",          "text",     label="Username",     help=username_help)
@@ -232,6 +237,35 @@ class VirtConfigPage(FormBase):
         self.form.encrypt_pass.state = True
         self.next_page = DetailPage
         self.next_button_label = "Submit"
+
+    def render(self):
+        out = super(VirtConfigPage, self).render()
+        self.container.loop.draw_screen()
+        # Set the owner of the current customer automatically
+        self.set_owner()
+        return out
+
+    def set_owner(self):
+        errors = []
+        owner = None
+
+        if self.input_data.smType != "rhsm":
+            return
+
+        config = self.input_data.get_config()
+        manager = self.input_data.get_sm_manager(config) 
+        with manager.sm_error_handler(errors):
+            manager.connect()
+            owner = manager.connection.getOwner(manager.sm_manager.uuid())
+            if owner:
+                self.form.owner_label.set_text(owner["key"])
+                self.input_data.owner = owner["key"]
+
+        if not owner:
+            self.form.owner_label.set_text(("fail", "Failed to fetch."))
+
+        if errors:
+            self.pop_up("Failed to get Organization", errors)
 
     def go_next(self, button):
         fields = ["owner", "env", "server", "username", "password", "encrypt_pass", "hypervisor_id"]
@@ -282,9 +316,14 @@ class DetailPage(FormBase):
 
         # Test to connect to the subscription manager
         self.form.print_text("check_sm_connection", label="Connecting to Subscription Manager")
-        errors = self.input_data.check_sm_connection(config)
-        if errors:
-            self.pop_up("Failed to connect to '%s' server" % self.input_data.smType_label, errors)
+        sm_errors = []
+        manager = self.input_data.get_sm_manager(config)
+        with manager.sm_error_handler(sm_errors):
+            manager.connect()
+            manager.logout()
+
+        if sm_errors:
+            self.pop_up("Failed to connect to '%s' server" % self.input_data.smType_label, sm_errors)
             self.set_fail_state(self.form.check_sm_connection)
             has_error = True
         else:

@@ -19,7 +19,7 @@ class TextBox(urwid.Edit):
 class LabelBox(urwid.Text):
     def __init__(self, caption, *args, **kwargs):
         super(LabelBox, self).__init__(*args, **kwargs)
-        self.caption_label = urwid.Text(caption)
+        self.caption_label = urwid.Text(caption, align="right")
         self.caption_size = 17
         self.labelbox_map = self
 
@@ -121,7 +121,7 @@ class TuiDisplay(object):
         if self.text is not None:
             self.body = [urwid.Text(self.text), urwid.Divider()] + self.body
 
-        self.contents =urwid.SimpleFocusListWalker(self.body)
+        self.contents = urwid.SimpleFocusListWalker(self.body)
         list_box = urwid.ListBox(self.contents)
         frame = urwid.Frame(urwid.LineBox(list_box), focus_part=focus_part)
 
@@ -212,6 +212,7 @@ class FormTuiDisplay(TuiDisplay):
         if not kwargs.get("label_size"):
             kwargs["label_size"] = 50
         self.add_field(name, 'label', **kwargs)
+        getattr(self, name).caption_label.set_align_mode("left")
         self.refresh_body()
 
 
