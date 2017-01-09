@@ -297,6 +297,7 @@ class DetailPage(FormBase):
         return out
 
     def process(self):
+        # Load the configuration and encrypt passwords
         self.form.print_text("get_config", label="Configuring your settings")
         try:
             self.input_data.encrypt_passwords()

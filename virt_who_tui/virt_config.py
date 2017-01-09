@@ -183,22 +183,22 @@ class VirtConfig(object):
 
         return errors
 
-    def _encrypt_password(self, field, password):
-        if not password:
-            return None
+    def _encrypt_password(self, field, password, encrypt_password=True):
+        # Make sure the encrypt password field is resetted because we don't want to
+        # store old encrypted password if the password has changed.
+        setattr(self, field, None)
+
+        # Encrypt the password only if the user want to do so
+        if not password or not encrypt_password:
+            return
+
         setattr(self, field, hexlify(Password.encrypt(password)))
         getattr(self, field)
 
     def encrypt_passwords(self):
-        if self.sat_encrypt_pass:
-            self._encrypt_password("sat_encrypted_password", self.sat_password)
-
-        if self.rhsm_encrypt_pass:
-            self._encrypt_password("rhsm_encrypted_password", self.rhsm_password)
-            self._encrypt_password("rhsm_encrypted_proxy_password", self.rhsm_proxy_password)
-
-        if self.encrypt_pass:
-            self._encrypt_password("encrypted_password", self.password)
+        self._encrypt_password("sat_encrypted_password", self.sat_password, self.sat_encrypt_pass)
+        self._encrypt_password("rhsm_encrypted_password", self.rhsm_password, self.rhsm_encrypt_pass)
+        self._encrypt_password("encrypted_password", self.password, self.encrypt_pass)
 
     def filename(self):
         filename = ".".join([self.config_name.lower().replace(" ", "_"), "conf"])
