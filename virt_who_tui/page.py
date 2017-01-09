@@ -112,6 +112,7 @@ class SMPage(FormBase):
         self.form.add_field("smType", "radio", label=self.input_data.SM_MAP.keys())
         # Set RHSM to default
         self.form.smType[0].set_state(True)
+        # Need to set a default next page here, otherwise the next button won't appear
         self.next_page = SMConfigPage
 
     def go_next(self, button):
@@ -122,10 +123,47 @@ class SMPage(FormBase):
             self.input_data.smType_label = v.label
             self.input_data.set_sm_type_by_label(v.label)
 
+        # If user selects RHSM, then we will ask the user whether he/she want to use
+        # different configuration to connect to RHSM or not.
+        if self.input_data.smType == "rhsm":
+            self.next_page = SMQuestionPage
+        else:
+            self.next_page = SMConfigPage
+
         super(SMPage, self).go_next(button)
 
     def validate(self):
         self.input_data.validate_sm_type()
+        return True
+
+
+class SMQuestionPage(FormBase):
+    def __init__(self, *args, **kwargs):
+        super(SMQuestionPage, self).__init__(*args, **kwargs)
+
+        sm_type = self.input_data.smType
+        self.prefix = sm_type if sm_type == "sat" else "rhsm"
+        self.form.title = self.input_data.smType_label
+
+        self.form.text = "By default, Virt-who uses the existing RHSM " +\
+                         "configuration in the current host to connect to RHSM.\n\n" +\
+                         "Would you like to use different information to connect?"
+        self.form.add_field("answer", "radio", label=["YES", "NO"])
+        self.form.answer[1].set_state(True)
+        # Need to set a default next page here, otherwise the next button won't appear
+        self.next_page = SMConfigPage
+
+    def go_next(self, button):
+        # If user don't want to set different RHSM, then go straight to the hypervisor
+        # configuration page
+        if self.input_data.smType == "rhsm" and self.form.answer[1].state:
+            self.next_page = VirtPage
+        else:
+            self.next_page = SMConfigPage
+
+        super(SMQuestionPage, self).go_next(button)
+
+    def validate(self):
         return True
 
 
