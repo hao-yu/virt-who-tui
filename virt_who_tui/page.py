@@ -249,7 +249,7 @@ class VirtConfigPage(FormBase):
         server_help = None
         if self.input_data.type == "libvirt":
             server_help = "e.g. qemu+ssh://host.example.com/system"
-        elif self.input_data.type in ["xen", "rhevm", "esx"]:
+        elif self.input_data.type in ["xen", "esx"]:
             server_help = "e.g. https://host.example.com"
 
         username_help = None
