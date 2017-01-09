@@ -254,6 +254,8 @@ class VirtConfigPage(FormBase):
 
         username_help = None
         if self.input_data.type == "rhevm":
+            server_help = "e.g.\nRHEV-M 3: https://host.example.com:443\n" +\
+                          "RHEV-M 4: https://host.example.com:443/ovirt-engine"
             username_help = "e.g. admin@internal"
 
         self.form.text = "Please virtualization backend details:"
@@ -268,6 +270,7 @@ class VirtConfigPage(FormBase):
         self.form.add_field("username",          "text",     label="Username",     help=username_help)
         self.form.add_field("password",          "password", label="Password")
         self.form.add_field("hypervisor_label",  "label",    label="How will the hypervisor(s) be identified?", value="", div=2, label_size=50)
+        self.form.hypervisor_label.caption_label.set_align_mode("left")
         self.form.add_field("hypervisor_id",     "radio",    label=self.input_data.HYPERVISOR_IDS)
         self.form.add_field("encrypt_pass",      "check",    label="Encrypt Password?", div=2)
         # Set uuid as default hypervisor id
