@@ -10,6 +10,10 @@ from virtwho.config import InvalidOption
 from virtwho.password import UnwritableKeyFile, InvalidKeyFile
 
 class FormBase(object):
+    """
+    This is a base class for a page. It provides basic functions to
+    render and operate a page.
+    """
     def __init__(self, container, input_data=None):
         self.input_data = input_data
         self.form = FormTuiDisplay(container)
@@ -20,6 +24,9 @@ class FormBase(object):
         self.next_button_label = "Next"
 
     def render(self):
+        """
+        Print the form on screen
+        """
         if self.previous_page:
             self.form.add_button("Back", callback=self.go_back)
 
@@ -29,19 +36,34 @@ class FormBase(object):
         return self.form.render()
 
     def pop_up(self, title, contents, status='error'):
+        """
+        Pop up a dialog box with 'OK' button
+        """
         dialog = OkPopUpTuiDisplay(self.container)
         dialog.title = (status, title)
         dialog.render(contents)
 
     def yesno_pop_up(self, title, contents, on_yes):
+        """
+        Pop up a dialog box with "YES" and "NO" buttons
+        """
         dialog = YesNoPopUpTuiDisplay(self.container, on_yes=on_yes)
         dialog.title = ('error', title)
         dialog.render(contents)
 
     def validate(self):
+        """
+        Perform validations before proceeding to the next page. This
+        should be implemented in the sub class
+        """
         raise NotImplementedError()
 
     def go_next(self, button):
+        """
+        This is triggered when the "NEXT" button is clicked. Proceed to
+        the next page if all validations are passed, otherwise pop up a
+        dialog box with error message.
+        """
         try:
             if self.validate():
                 self.render_next_page()
@@ -49,14 +71,25 @@ class FormBase(object):
             self.pop_up("Failed with following errors:", [str(e)])
 
     def go_back(self, button):
+        """
+        Go back to the previous page. It is triggered when the "BACK" button
+        is clicked.
+        """
         self.previous_page.form.set_current()
 
     def render_next_page(self):
+        """
+        Print the next page on screen.
+        """
         new_page = self.next_page(self.container, input_data=self.input_data)
         new_page.previous_page = self
         new_page.render()
 
     def populate_inputs(self, fields):
+        """
+        Set user inputs, so that the information can be passed
+        among the forms.
+        """
         for args in fields:
             value = None
             field = args[0] if isinstance(args, list) else args
@@ -80,6 +113,10 @@ class FormBase(object):
 
 
 class WelcomePage(FormBase):
+    """
+    This is the first page. It introduces this application and ask the user to input
+    a name for his/her configuration.
+    """
     def __init__(self, *args, **kwargs):
         super(WelcomePage, self).__init__(*args, **kwargs)
         self.form.title = "Welcome to Virt-who TUI"
@@ -104,6 +141,9 @@ class WelcomePage(FormBase):
 
 
 class SMPage(FormBase):
+    """
+    This page asks the user select a Subscription Manager to be reported to.
+    """
     def __init__(self, *args, **kwargs):
         super(SMPage, self).__init__(*args, **kwargs)
         self.form.title = "Subscription Manager"
@@ -138,6 +178,10 @@ class SMPage(FormBase):
 
 
 class SMQuestionPage(FormBase):
+    """
+    This page asks the user whether he/she wants to use differnt RHSM information
+    to connect or not.
+    """
     def __init__(self, *args, **kwargs):
         super(SMQuestionPage, self).__init__(*args, **kwargs)
 
@@ -168,6 +212,11 @@ class SMQuestionPage(FormBase):
 
 
 class SMConfigPage(FormBase):
+    """
+    This page allows user to enter different RHSM information to connect.
+    If user selects Satellite 5 as the Subscription manager, then user will
+    need to enter the Satellite 5 connection details in this page.
+    """
     FIELDS = {
         "sat": [
             ["sat_server",       "text",     "Server",            0],
@@ -219,6 +268,9 @@ class SMConfigPage(FormBase):
 
 
 class VirtPage(FormBase):
+    """
+    This page asks the user to select a virtualization backend.
+    """
     def __init__(self, *args, **kwargs):
         super(VirtPage, self).__init__(*args, **kwargs)
         self.form.title = 'Virtualization Backend'
@@ -241,6 +293,9 @@ class VirtPage(FormBase):
 
 
 class VirtConfigPage(FormBase):
+    """
+    This page asks the user to input the virtualization details.
+    """
     def __init__(self, *args, **kwargs):
         super(VirtConfigPage, self).__init__(*args, **kwargs)
         self.virt_name = self.input_data.humanize_type()
@@ -319,6 +374,11 @@ class VirtConfigPage(FormBase):
 
 
 class DetailPage(FormBase):
+    """
+    This is the last page. It tests the connections to the Subscription Manager
+    and the Virtualization backend, encrypt passwords and generate a configuration
+    file. Finally, it starts the Virt-who service.
+    """
     def __init__(self, *args, **kwargs):
         super(DetailPage, self).__init__(*args, **kwargs)
         self.form.text = "Processing..."

@@ -4,6 +4,13 @@ import traceback
 import StringIO
 
 class TextBox(urwid.Edit):
+    """
+    This class is used to render label and text box group to be used in
+    a form.
+    For example:
+
+    Name: [________]
+    """
     def __init__(self, caption, *args, **kwargs):
         super(TextBox, self).__init__(*args, **kwargs)
         self.caption_label = urwid.Text(u"%s: " % caption, align="right")
@@ -17,6 +24,12 @@ class TextBox(urwid.Edit):
 
 
 class LabelBox(urwid.Text):
+    """
+    This class is used to render a read only field to be used in a form.
+    For example:
+
+    Name: foo bar
+    """
     def __init__(self, caption, *args, **kwargs):
         super(LabelBox, self).__init__(*args, **kwargs)
         self.caption_label = urwid.Text(caption, align="right")
@@ -31,6 +44,9 @@ class LabelBox(urwid.Text):
 
 
 class TuiContainerDisplay(object):
+    """
+    This class provides a container that can contain urwid widgets.
+    """
     palette = [
         ('body',       'black',      'light gray', 'standout'),
         ('border',     'black',      'dark blue'),
@@ -84,6 +100,10 @@ class TuiContainerDisplay(object):
             return 1, repr(e)
 
 class TuiDisplay(object):
+    """
+    This is a base class that provides basic functions to manage
+    and operate frame in a container.
+    """
     def __init__(self, container):
         self.text = None
         self.container = container
@@ -94,9 +114,15 @@ class TuiDisplay(object):
         self.add_button('Quit', self.exit_program)
 
     def exit_program(self, button):
+        """
+        Exit the application
+        """
         raise urwid.ExitMainLoop()
 
     def add_button(self, name, callback=None):
+        """
+        Add a button into the footer of a frame
+        """
         if callback:
             button = urwid.Button(name, callback)
 
@@ -105,6 +131,9 @@ class TuiDisplay(object):
         return button_map
 
     def remove_button(self, name):
+        """
+        Remove a button from a frame
+        """
         for idx, button in enumerate(self.buttons):
             if button.label == name:
                 self.buttons.pop(idx)
@@ -112,12 +141,18 @@ class TuiDisplay(object):
         return False
 
     def button(self, name):
+        """
+        Get an existing button
+        """
         for button in self.buttons:
             if button.label == name:
                 return button
         raise KeyError("Could not find button '%s'" % name)
 
     def set_frame(self, focus_part='body'):
+        """
+        Add all widgets into a frame.
+        """
         if self.text is not None:
             self.body = [urwid.Text(self.text), urwid.Divider()] + self.body
 
@@ -137,23 +172,50 @@ class TuiDisplay(object):
         return frame
 
     def refresh_body(self):
+        """
+        Redraw the body of a frame at runtime. Usually, it is used to
+        update the information, such as update the result of the
+        connection test.
+        """
         self.contents[:] = self.body
         self.container.loop.draw_screen()
 
     def set_current(self):
+        """
+        Set as current page
+        """
         self.container.body.original_widget = self.current_frame
 
     def render(self):
+        """
+        Print the frame on screen
+        """
         self.current_frame = self.set_frame()
         self.set_current()
         return self
 
 
 class FormTuiDisplay(TuiDisplay):
+    """
+    This is the sub class of TuiDisplay class. It provides additional
+    function to create form fields into a frame.
+    """
     def __init__(self, *args, **kwargs):
         super(FormTuiDisplay, self).__init__(*args, **kwargs)
 
     def add_field(self, name, ftype, **kwargs):
+        """
+        Create a form field. It supports Password field, Text field,
+        Checkboxes and Radio buttons.
+        For examples:
+
+        # Text field
+        Name: [______________]
+
+        # Password field
+        Password: [***********]
+
+        """
         div = kwargs.get("div", 0)
         label = kwargs.get("label")
         label_size = kwargs.get("label_size", 17)
@@ -209,6 +271,9 @@ class FormTuiDisplay(TuiDisplay):
         self.body += input_fields
 
     def print_text(self, name, **kwargs):
+        """
+        Print text to the screen at runtime.
+        """
         if not kwargs.get("label_size"):
             kwargs["label_size"] = 50
         self.add_field(name, 'label', **kwargs)
@@ -217,6 +282,9 @@ class FormTuiDisplay(TuiDisplay):
 
 
 class PopUpTuiDisplay(FormTuiDisplay):
+    """
+    This is a base class for a Pop up dialog box.
+    """
     def __init__(self, *args, **kwargs):
         super(PopUpTuiDisplay, self).__init__(*args, **kwargs)
         self.current_widget = self.container.body.original_widget
@@ -245,11 +313,18 @@ class PopUpTuiDisplay(FormTuiDisplay):
         self.container.body.original_widget = widget
 
 class OkPopUpTuiDisplay(PopUpTuiDisplay):
+    """
+    This class is used to create a Pop up dialog box with "OK" button.
+    """
     def __init__(self, *args, **kwargs):
         super(OkPopUpTuiDisplay, self).__init__(*args, **kwargs)
         self.add_button("OK", self.close)
 
 class YesNoPopUpTuiDisplay(PopUpTuiDisplay):
+    """
+    This class is used to create a Pop up dialog box with "YES" and
+    "NO" button.
+    """
     def __init__(self, *args, **kwargs):
         on_yes = kwargs.pop("on_yes")
         super(YesNoPopUpTuiDisplay, self).__init__(*args, **kwargs)

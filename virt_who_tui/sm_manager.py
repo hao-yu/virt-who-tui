@@ -23,6 +23,9 @@ class SmManager(object):
 
     @contextmanager
     def sm_error_handler(self, errors):
+        """
+        Catch connection errors and store them into a list
+        """
         try:
             yield
         except Exception as e:
@@ -41,11 +44,17 @@ class SmManager(object):
 
 class RhsmManager(SmManager):
     def connect(self):
+        """
+        Connect to RHSM
+        """
         super(RhsmManager, self).connect()
         self.connection = self.sm_manager.connection
 
 class Sat5Manager(SmManager):
     def connect(self):
+        """
+        Connect to Satellite 5
+        """
         super(Sat5Manager, self).connect()
         if hasattr(self.sm_manager, 'server_xmlrpc'):
             self.connection = self.sm_manager.server_xmlrpc
@@ -56,5 +65,8 @@ class Sat5Manager(SmManager):
         self.session = self.connection.auth.login(username, password)
 
     def logout(self):
+        """
+        Logout existing session
+        """
         if self.session:
             self.connection.auth.logout(self.session)
