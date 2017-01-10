@@ -108,6 +108,11 @@ class FormBase(object):
                         break
             else:
                 value = element.get_edit_text()
+                # Force unicode string to normal string, because unicode doesn't
+                # seem to work for RHSM connection. When providing unicode to
+                # connect to RHSM, the application crash.
+                if isinstance(value, unicode):
+                    value = str(value)
 
             setattr(self.input_data, field, value)
 
@@ -226,6 +231,7 @@ class SMConfigPage(FormBase):
         ],
         "rhsm": [
             ["rhsm_hostname",       "text",     "Hostname",          0],
+            ["rhsm_prefix",         "text",     "Prefix",            0],
             ["rhsm_port",           "text",     "Port",              0],
             ["rhsm_username",       "text",     "Username",          0],
             ["rhsm_password",       "password", "Password",          0],
@@ -257,6 +263,11 @@ class SMConfigPage(FormBase):
         self.next_page = VirtPage
 
     def go_next(self, button):
+        # If rhsm_prefix doesn't start with "/" then add a "/"
+        url_prefix = self.form.rhsm_prefix.get_edit_text()
+        if url_prefix and not url_prefix.startswith("/"):
+            self.form.rhsm_prefix.set_edit_text("/%s" % url_prefix)
+
         self.populate_inputs(self.FIELDS[self.prefix])
         super(SMConfigPage, self).go_next(button)
 
@@ -349,7 +360,7 @@ class VirtConfigPage(FormBase):
             return
 
         config = self.input_data.get_config()
-        manager = self.input_data.get_sm_manager(config) 
+        manager = self.input_data.get_sm_manager(config)
         with manager.sm_error_handler(errors):
             manager.connect()
             owner = manager.connection.getOwner(manager.sm_manager.uuid())

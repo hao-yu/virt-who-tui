@@ -39,6 +39,7 @@ class VirtConfig(object):
     SAT_FIELDS   = ["sat_server", "sat_username", "sat_password", "sat_encrypted_password"]
     RHSM_FIELDS  = [
         "rhsm_hostname",
+        "rhsm_prefix",
         "rhsm_port",
         "rhsm_username",
         "rhsm_password",
