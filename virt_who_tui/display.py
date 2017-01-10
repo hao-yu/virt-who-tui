@@ -328,6 +328,5 @@ class YesNoPopUpTuiDisplay(PopUpTuiDisplay):
     def __init__(self, *args, **kwargs):
         on_yes = kwargs.pop("on_yes")
         super(YesNoPopUpTuiDisplay, self).__init__(*args, **kwargs)
-        self.remove_button("OK")
         self.add_button("NO", self.close)
         self.add_button("YES", on_yes)
