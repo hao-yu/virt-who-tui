@@ -1,6 +1,7 @@
 import sys
 import os
 import urwid
+import socket
 import logging
 
 from virt_who_tui.display import FormTuiDisplay, OkPopUpTuiDisplay, YesNoPopUpTuiDisplay
@@ -325,9 +326,9 @@ class VirtConfigPage(FormBase):
             username_help = "e.g. admin@internal"
 
         self.form.text = "Please virtualization backend details:"
-        if self.input_data.smType == "rhsm":
-            # For display purpose, it will be set automatically
-            self.form.add_field("owner_label", "label", label="Organization:", value="Fetching...")
+        self.auto_set_owner = self.should_auto_set_owner()
+        if self.auto_set_owner:
+            self.form.add_field("owner", "text", label="Organization:", value="Fetching...")
         else:
             self.form.add_field("owner", "text", label="Organization", help="Can be retrieved by executing 'subscription-manager orgs' command. e.g. 1234567")
 
@@ -352,11 +353,21 @@ class VirtConfigPage(FormBase):
         self.set_owner()
         return out
 
+    def should_auto_set_owner(self):
+        if self.input_data.smType == "rhsm":
+            # If user wants to report to a custom RHSM, then we can't get the Organization automatically because
+            # the current host may not register to the custom RHSM. For example, if user runs Virt-who inside the
+            # Satellite server, we can get Organization Id unless the Satellite Server is registered to itself.
+            rhsm_hostname = self.input_data.rhsm_hostname
+            if not rhsm_hostname or rhsm_hostname != socket.getfqdn():
+                return True
+        return False
+
     def set_owner(self):
         errors = []
         owner = None
 
-        if self.input_data.smType != "rhsm":
+        if not self.auto_set_owner:
             return
 
         config = self.input_data.get_config()
@@ -365,11 +376,11 @@ class VirtConfigPage(FormBase):
             manager.connect()
             owner = manager.connection.getOwner(manager.sm_manager.uuid())
             if owner:
-                self.form.owner_label.set_text(owner["key"])
+                self.form.owner.set_edit_text(owner["key"])
                 self.input_data.owner = owner["key"]
 
         if not owner:
-            self.form.owner_label.set_text(("fail", "Failed to fetch."))
+            self.form.owner.set_edit_text("")
 
         if errors:
             self.pop_up("Failed to get Organization", errors)

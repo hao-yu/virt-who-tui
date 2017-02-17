@@ -230,7 +230,7 @@ class FormTuiDisplay(TuiDisplay):
             input_fields.append(urwid.Divider())
 
         if ftype in ["password", "text"]:
-            textbox = TextBox(label)
+            textbox = TextBox(label, "", value)
 
             if ftype == "password":
                 textbox.set_mask("*")
