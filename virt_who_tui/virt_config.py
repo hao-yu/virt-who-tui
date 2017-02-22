@@ -116,9 +116,9 @@ class VirtConfig(object):
             return True
         return False
 
-    def set_rhsm_hostname(self):
-        if self.smType_label == "Red Hat Customer Portal" and not self.host_is_registered_to_portal():
-            self.rhsm_hostname = self.PORTAL_URL
+    def clear_rhsm_config(self):
+        for field in self.RHSM_FIELDS:
+            setattr(self, field, None)
 
     def set_rhsm_prefix(self):
         if self.rhsm_hostname and not self.rhsm_prefix:
@@ -277,7 +277,6 @@ class VirtConfig(object):
         parser = SafeConfigParser()
         parser.add_section(self.config_name)
 
-        self.set_rhsm_hostname()
         self.set_rhsm_prefix()
 
         for field in self.all_fields:

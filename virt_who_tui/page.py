@@ -169,9 +169,12 @@ class SMPage(FormBase):
         # Don't ask for custom RHSM configuration if the host is already registered to
         # the service
         sm_label = self.input_data.smType_label
-        if sm_label == "Red Hat Customer Portal" or \
+        if (sm_label == "Red Hat Customer Portal" and self.input_data.host_is_registered_to_portal()) or \
            (sm_label == "Red Hat Satellite 6" and self.input_data.host_is_registered_to_satellite6()) or \
            (sm_label == "Subscription Asset Manager" and self.input_data.host_is_registered_to_sam()):
+            # Clear all the previously set RHSM information as user is allowed to come back to this page
+            # and choose a different option.
+            self.input_data.clear_rhsm_config()
             self.next_page = VirtPage
         else:
             self.next_page = SMConfigPage
@@ -221,6 +224,9 @@ class SMConfigPage(FormBase):
 
         encrypt_checkbox = getattr(self.form, "%s_encrypt_pass" % self.prefix)
         encrypt_checkbox.state = True
+
+        if self.input_data.smType_label == "Red Hat Customer Portal":
+            self.form.rhsm_hostname.set_edit_text(self.input_data.PORTAL_URL)
 
         self.next_page = VirtPage
 
