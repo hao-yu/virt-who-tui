@@ -1,7 +1,6 @@
 import sys
 import os
 import urwid
-import socket
 import logging
 
 from virt_who_tui.display import FormTuiDisplay, OkPopUpTuiDisplay, YesNoPopUpTuiDisplay
@@ -127,7 +126,6 @@ class WelcomePage(FormBase):
         super(WelcomePage, self).__init__(*args, **kwargs)
         self.form.title = "Welcome to Virt-who TUI"
         self.form.text = "Virt-who TUI aims to simplify the complexity of settings up virt-who by guiding users step by step.\n\n" + \
-            "NOTE: Before proceeding, please make sure that this host is registered to RHSM or Satellite server.\n\n" + \
             "Please enter a name for your configuration. It can be any name that is meaningful to you, such as 'redhat_rhevm_library'."
         self.form.add_field("config_name", "text", label="Name")
         self.next_page = SMPage
@@ -152,10 +150,9 @@ class SMPage(FormBase):
     """
     def __init__(self, *args, **kwargs):
         super(SMPage, self).__init__(*args, **kwargs)
-        self.form.title = "Subscription Manager"
-        self.form.text = "Choose where the host/guest associations should be reported.\n\n" + \
-            "NOTE: Choose 'Red Hat Subscription Manager (RHSM)' if this host is registered to Satellite 6 or RHSM."
-        self.form.add_field("smType", "radio", label=self.input_data.SM_MAP.keys())
+        self.form.title = "Subscription Service"
+        self.form.text = "Where does your Virt-who report to?"
+        self.form.add_field("smType", "radio", label=self.input_data.SM)
         # Set RHSM to default
         self.form.smType[0].set_state(True)
         # Need to set a default next page here, otherwise the next button won't appear
@@ -169,10 +166,13 @@ class SMPage(FormBase):
             self.input_data.smType_label = v.label
             self.input_data.set_sm_type_by_label(v.label)
 
-        # If user selects RHSM, then we will ask the user whether he/she want to use
-        # different configuration to connect to RHSM or not.
-        if self.input_data.smType == "rhsm":
-            self.next_page = SMQuestionPage
+        # Don't ask for custom RHSM configuration if the host is already registered to
+        # the service
+        sm_label = self.input_data.smType_label
+        if sm_label == "Red Hat Customer Portal" or \
+           (sm_label == "Red Hat Satellite 6" and self.input_data.host_is_registered_to_satellite6()) or \
+           (sm_label == "Subscription Asset Manager" and self.input_data.host_is_registered_to_sam()):
+            self.next_page = VirtPage
         else:
             self.next_page = SMConfigPage
 
@@ -180,40 +180,6 @@ class SMPage(FormBase):
 
     def validate(self):
         self.input_data.validate_sm_type()
-        return True
-
-
-class SMQuestionPage(FormBase):
-    """
-    This page asks the user whether he/she wants to use differnt RHSM information
-    to connect or not.
-    """
-    def __init__(self, *args, **kwargs):
-        super(SMQuestionPage, self).__init__(*args, **kwargs)
-
-        sm_type = self.input_data.smType
-        self.prefix = sm_type if sm_type == "sat" else "rhsm"
-        self.form.title = self.input_data.smType_label
-
-        self.form.text = "By default, Virt-who uses the existing RHSM " +\
-                         "configuration in the current host to connect to RHSM.\n\n" +\
-                         "Would you like to use different information to connect?"
-        self.form.add_field("answer", "radio", label=["YES", "NO"])
-        self.form.answer[1].set_state(True)
-        # Need to set a default next page here, otherwise the next button won't appear
-        self.next_page = SMConfigPage
-
-    def go_next(self, button):
-        # If user don't want to set different RHSM, then go straight to the hypervisor
-        # configuration page
-        if self.input_data.smType == "rhsm" and self.form.answer[1].state:
-            self.next_page = VirtPage
-        else:
-            self.next_page = SMConfigPage
-
-        super(SMQuestionPage, self).go_next(button)
-
-    def validate(self):
         return True
 
 
@@ -232,7 +198,6 @@ class SMConfigPage(FormBase):
         ],
         "rhsm": [
             ["rhsm_hostname",       "text",     "Hostname",          0],
-            ["rhsm_prefix",         "text",     "Prefix",            0],
             ["rhsm_port",           "text",     "Port",              0],
             ["rhsm_username",       "text",     "Username",          0],
             ["rhsm_password",       "password", "Password",          0],
@@ -249,11 +214,7 @@ class SMConfigPage(FormBase):
 
         sm_type = self.input_data.smType
         self.prefix = sm_type if sm_type == "sat" else "rhsm"
-        self.form.title = self.input_data.smType_label
-        self.form.text = "Please enter Subscripton Manager details."
-
-        if self.prefix == "rhsm":
-            self.form.text += "\n\nAll fields are OPTIONAL."
+        self.form.title = "%s Information" % self.input_data.smType_label
 
         for args in self.FIELDS[self.prefix]:
             self.form.add_field(args[0], args[1], label=args[2], div=args[3])
@@ -264,29 +225,23 @@ class SMConfigPage(FormBase):
         self.next_page = VirtPage
 
     def go_next(self, button):
-        # If rhsm_prefix doesn't start with "/" then add a "/"
-        url_prefix = self.form.rhsm_prefix.get_edit_text()
-        if url_prefix and not url_prefix.startswith("/"):
-            self.form.rhsm_prefix.set_edit_text("/%s" % url_prefix)
-
         self.populate_inputs(self.FIELDS[self.prefix])
         super(SMConfigPage, self).go_next(button)
 
     def validate(self):
+        self.input_data.validate_rhsm_config()
         self.input_data.validate_satellite_config()
-        for field in ["rhsm_port", "rhsm_proxy_port"]:
-            self.input_data.validate_integer(field)
         return True
 
 
 class VirtPage(FormBase):
     """
-    This page asks the user to select a virtualization backend.
+    This page asks the user to select a hypervisor backend.
     """
     def __init__(self, *args, **kwargs):
         super(VirtPage, self).__init__(*args, **kwargs)
-        self.form.title = 'Virtualization Backend'
-        self.form.text = "Choose a virtualization backend that should be used to gather host/guest associations:"
+        self.form.title = 'Hypervisor Backend'
+        self.form.text = "Choose a hypervisor backend that should be used to gather host/guest associations:"
         self.form.add_field("virtual", "radio", label=self.input_data.VIRT_MAP.keys())
         self.next_page = VirtConfigPage
 
@@ -306,12 +261,12 @@ class VirtPage(FormBase):
 
 class VirtConfigPage(FormBase):
     """
-    This page asks the user to input the virtualization details.
+    This page asks the user to input the hypervisor information.
     """
     def __init__(self, *args, **kwargs):
         super(VirtConfigPage, self).__init__(*args, **kwargs)
         self.virt_name = self.input_data.humanize_type()
-        self.form.title = self.virt_name
+        self.form.title = "%s Information" % self.virt_name.title()
 
         server_help = None
         if self.input_data.type == "libvirt":
@@ -325,7 +280,6 @@ class VirtConfigPage(FormBase):
                           "RHEV-M 4: https://host.example.com:443/ovirt-engine"
             username_help = "e.g. admin@internal"
 
-        self.form.text = "Please virtualization backend details:"
         self.auto_set_owner = self.should_auto_set_owner()
         if self.auto_set_owner:
             self.form.add_field("owner", "text", label="Organization:", value="Fetching...")
@@ -359,7 +313,7 @@ class VirtConfigPage(FormBase):
             # the current host may not register to the custom RHSM. For example, if user runs Virt-who inside the
             # Satellite server, we can get Organization Id unless the Satellite Server is registered to itself.
             rhsm_hostname = self.input_data.rhsm_hostname
-            if not rhsm_hostname or rhsm_hostname != socket.getfqdn():
+            if not rhsm_hostname and self.input_data.host_is_registered():
                 return True
         return False
 
@@ -398,7 +352,7 @@ class VirtConfigPage(FormBase):
 class DetailPage(FormBase):
     """
     This is the last page. It tests the connections to the Subscription Manager
-    and the Virtualization backend, encrypt passwords and generate a configuration
+    and the Hypervisor backend, encrypt passwords and generate a configuration
     file. Finally, it starts the Virt-who service.
     """
     def __init__(self, *args, **kwargs):
@@ -453,8 +407,8 @@ class DetailPage(FormBase):
         else:
             self.set_pass_state(self.form.check_sm_connection)
 
-        # Test to connect to the virtualization backend
-        self.form.print_text("check_virt_connection", label="Connecting to Virtualization Backend")
+        # Test to connect to the hypervisor backend
+        self.form.print_text("check_virt_connection", label="Connecting to Hypervisor Backend")
         errors = self.input_data.check_virt_connection(config)
         if errors:
             self.pop_up("Failed to connect to '%s' server" %  self.input_data.humanize_type(), errors)

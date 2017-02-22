@@ -6,6 +6,7 @@ import socket
 import platform
 import logging
 import StringIO
+import rhsm.config as rhsm_config
 from binascii import hexlify
 from virtwho.virt import Virt
 from virtwho.virt.vdsm import Vdsm
@@ -29,9 +30,18 @@ class VirtConfig(object):
     }
 
     SM_MAP = {
-        "Red Hat Subscription Manager (RHSM)": "rhsm",
-        "Satellite 5": "sat",
+        "Red Hat Customer Portal": "rhsm",
+        "Subscription Asset Manager": "rhsm",
+        "Red Hat Satellite 6": "rhsm",
+        "Red Hat Satellite 5": "sat",
     }
+
+    SM = [
+        "Red Hat Customer Portal",
+        "Red Hat Satellite 6",
+        "Subscription Asset Manager",
+        "Red Hat Satellite 5",
+    ]
 
     HYPERVISOR_IDS = ["uuid", "hostname", "hwuuid"]
 
@@ -51,6 +61,10 @@ class VirtConfig(object):
         "rhsm_encrypted_proxy_password",
     ]
 
+    PORTAL_URL = "subscription.rhsm.redhat.com"
+    PORTAL_PREFIX = "/subscription"
+    SAT6_PREFIX = "/rhsm"
+    SAM_PREFIX = "/sam/api"
     CONFIG_DIR = "/etc/virt-who.d"
     LOG_FILE = "/var/log/virt-who-tui.log"
 
@@ -61,6 +75,7 @@ class VirtConfig(object):
         self.encrypt_pass = True
         self.sat_encrypt_pass = True
         self.rhsm_encrypt_pass = True
+        self._rhsm_config = rhsm_config.initConfig(rhsm_config.DEFAULT_CONFIG_PATH)
 
         self.all_fields = self.VIRT_FIELDS + self.SAT_FIELDS + self.RHSM_FIELDS
         # pre-populate all the fields to empty string
@@ -78,16 +93,52 @@ class VirtConfig(object):
     def set_sm_type_by_label(self, label):
         self.smType = self.SM_MAP[label]
 
+    def host_is_registered(self):
+        return self.host_is_registered_to_portal() or \
+            self.host_is_registered_to_satellite6() or \
+            self.host_is_registered_to_sam()
+
+    def host_is_registered_to_portal(self):
+        rhsm_host = self._rhsm_config.get('server', 'hostname')
+        if rhsm_host == self.PORTAL_URL:
+            return True
+        return False
+
+    def host_is_registered_to_satellite6(self):
+        prefix = self._rhsm_config.get('server', 'prefix')
+        if prefix == self.SAT6_PREFIX:
+            return True
+        return False
+
+    def host_is_registered_to_sam(self):
+        prefix = self._rhsm_config.get('server', 'prefix')
+        if prefix == self.SAM_PREFIX:
+            return True
+        return False
+
+    def set_rhsm_hostname(self):
+        if self.smType_label == "Red Hat Customer Portal" and not self.host_is_registered_to_portal():
+            self.rhsm_hostname = self.PORTAL_URL
+
+    def set_rhsm_prefix(self):
+        if self.rhsm_hostname and not self.rhsm_prefix:
+            if self.smType_label == "Red Hat Satellite 6":
+                self.rhsm_prefix = self.SAT6_PREFIX
+            elif self.smType_label == "Red Hat Customer Portal":
+                self.rhsm_prefix = self.PORTAL_PREFIX
+            elif self.smType_label == "Subscription Asset Manager":
+                self.rhsm_prefix = self.SAM_PREFIX
+
     def humanize_type(self):
         for k, v in self.VIRT_MAP.iteritems():
             if v == self.type:
                 return k
-        raise InvalidOption("'%s' is not a supported virtualization backend." % self.type)
+        raise InvalidOption("'%s' is not a supported hypervisor backend." % self.type)
 
     def validate_integer(self, field):
         val = getattr(self, field)
         if val and not val.isdigit():
-            raise InvalidOption("'%s' must be an integer." % field.title().replace("_", " "))
+            raise InvalidOption("%s must be an integer." % field.replace("rhsm_", "").replace("sat_", "").title())
 
     def validate_config_name(self):
         if not self.config_name:
@@ -97,34 +148,45 @@ class VirtConfig(object):
 
     def validate_virt_type(self):
         if not self.type:
-            raise InvalidOption("Please specify a virtualization backend.")
+            raise InvalidOption("Please specify a hypervisor backend.")
         elif self.type not in self.SUPPORTED_VIRT:
-            raise InvalidOption("'%s' is not a supported virtualization backend." % self.type)
+            raise InvalidOption("'%s' is not a supported hypervisor backend." % self.type)
 
     def validate_sm_type(self):
         if not self.smType:
             raise InvalidOption("Please specify where the host/guest associations should be reported.")
 
+    def validate_rhsm_config(self):
+        if self.smType != "rhsm":
+            return
+
+        for field in ["rhsm_hostname", "rhsm_username", "rhsm_password"]:
+            if not getattr(self, field):
+                raise InvalidOption("%s is required." % field.replace("rhsm_", "").title())
+
+        for field in ["rhsm_port", "rhsm_proxy_port"]:
+            self.validate_integer(field)
+
     def validate_satellite_config(self):
         if self.smType != "sat":
             return
-        elif not self.sat_server:
-            raise InvalidOption("Please specify URL of Satellite 5.")
-        elif not self.sat_username or not self.sat_password:
-            raise InvalidOption("Please specify username and password of Satellite 5.")
+
+        for field in ["sat_server", "sat_username", "sat_password"]:
+            if not getattr(self, field):
+                raise InvalidOption("%s is required." % field.replace("sat_", "").title())
 
     def validate_virt_config(self):
         self.validate_virt_type()
         if not self.server and self.type not in ['libvirt', 'vdsm', 'fake']:
-            raise InvalidOption("Please specify URL of virtualization backend server.")
+            raise InvalidOption("Server is required.")
 
         if ((self.smType == 'rhsm') and (
                 (self.type in ('esx', 'rhevm', 'hyperv', 'xen')) or
                 (self.type == 'libvirt' and self.server))):
             if not self.env:
-                raise InvalidOption("Please specify environment that '%s' belongs to." % self.type)
+                raise InvalidOption("Environment is required.")
             elif not self.owner:
-                raise InvalidOption("Please specify an organization.")
+                raise InvalidOption("Organization is required.")
 
         if self.type == 'libvirt':
             if self.server:
@@ -206,36 +268,27 @@ class VirtConfig(object):
         return "/".join([self.CONFIG_DIR, filename])
 
     def to_ini(self):
-        parser = SafeConfigParser()
-        parser.add_section(self.config_name)
-
-        for field in self.all_fields:
-            if field == "sat_password" and self.sat_encrypt_pass or \
-                field == "rhsm_password" and self.rhsm_encrypt_pass or \
-                field == "rhsm_proxy_password" and self.rhsm_encrypt_pass or \
-                field == "password" and self.encrypt_pass:
-                continue
-
-            # Based on the validation codes in virt-who:
-            # - Environment is not used in non-remote libvirt connection
-            # - Owner is not used in non-remote libvirt connection
-            # Thus, force owner and env to None
-            if self.type == 'libvirt' and not self.server and field in ["owner", "env"]:
-                continue
-
-            value = getattr(self, field)
-            if value:
-                parser.set(self.config_name, field, value)
-
+        config = self.get_config(True)
         with open(self.filename(), 'wb') as fh:
-            parser.write(fh)
+            config.write(fh)
 
-    def get_config(self):
+    def get_config(self, file=False):
         config = None
         parser = SafeConfigParser()
         parser.add_section(self.config_name)
 
+        self.set_rhsm_hostname()
+        self.set_rhsm_prefix()
+
         for field in self.all_fields:
+            # Don't want to print clear text password in the file
+            if file:
+                if field == "sat_password" and self.sat_encrypt_pass or \
+                    field == "rhsm_password" and self.rhsm_encrypt_pass or \
+                    field == "rhsm_proxy_password" and self.rhsm_encrypt_pass or \
+                    field == "password" and self.encrypt_pass:
+                    continue
+
             # Based on the validation codes in virt-who:
             # - Environment is not used in non-remote libvirt connection
             # - Owner is not used in non-remote libvirt connection
@@ -249,7 +302,11 @@ class VirtConfig(object):
 
         for section in parser.sections():
             config = Config.fromParser(section, parser)
-        return config
+
+        if file:
+            return parser
+        else:
+            return config
 
     def is_rhel6_or_below(self):
         dist = platform.dist()
